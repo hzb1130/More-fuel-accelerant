@@ -28,7 +28,7 @@ Features / 功能说明
 
 - Customize the percentage of durability lost per ignition (1-100%). / 可自定义每次点火消耗的助燃剂耐久百分比（1-100%）。
 
-Bug Note / 已知bug: This feature still has some issues that may cause some accelerants to disappear. Please take out all accelerants from your backpack before enabling this feature and reloading the save. / 此功能仍存在部分bug，可能会导致部分助燃剂消失。建议先将背包中的所有助燃剂取出，再开启此功能并重新加载存档。
+  'bug can't fix!!'
 
 Notice / 注意事项
 
