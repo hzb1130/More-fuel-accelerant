@@ -20,16 +20,12 @@ Features / 功能说明
 
 - Adjust the additional heat added to the fire by burning animal fat. / 可调节动物脂肪燃烧时为火堆增加的额外温度。
 
-3. Custom Accelerant Consumption / 助燃剂自定义消耗
+3. Accelerant Probability Consumption / 助燃剂概率消耗
+   
+- Enable/disable probability-based consumption for accelerants. / 可开启 / 关闭助燃剂的概率消耗模式。
+  
+- When enabled, each ignition has a 1/X chance to consume the accelerant. / 开启后，每次点火将有 1/X 的概率消耗掉助燃剂。
+  
+- Customize the consumption chance from 1/1 (always consume) to 1/10 (rarely consume). / 可自定义消耗概率，范围从 1/1（必定消耗）到 1/10（极少消耗）。
 
-- Enable/disable custom durability consumption for accelerants (replaces stack consumption). / 可开启/关闭助燃剂的自定义耐久消耗（替代数量消耗）。
 
-- When enabled, accelerants become non-stackable. / 开启后，助燃剂将变为不可堆叠状态。
-
-- Customize the percentage of durability lost per ignition (1-100%). / 可自定义每次点火消耗的助燃剂耐久百分比（1-100%）。
-
-  'bug can't fix!!'
-
-Notice / 注意事项
-
-Some features take effect after reloading the save. / 部分功能需重新加载存档后生效。
