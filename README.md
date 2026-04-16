@@ -20,7 +20,11 @@ Features / 功能说明
 
 - Adjust the additional heat added to the fire by burning animal fat. / 可调节动物脂肪燃烧时为火堆增加的额外温度。
 
-3. Accelerant Probability Consumption / 助燃剂概率消耗
+3. Charcoal as Fuel / 木炭作为燃料
+
+………………
+
+4. Accelerant Probability Consumption / 助燃剂概率消耗
    
 - Enable/disable probability-based consumption for accelerants. / 可开启 / 关闭助燃剂的概率消耗模式。
   
