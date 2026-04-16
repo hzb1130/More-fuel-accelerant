@@ -8,7 +8,7 @@ using ModSettings;
 using System.Reflection;
 using System.Collections.Generic;
 
-[assembly: MelonInfo(typeof(AnimalFatFuel.AnimalFatFuelMain), "MORE_fuel_accelerant", "1.3.0", "HZB1130")]
+[assembly: MelonInfo(typeof(AnimalFatFuel.AnimalFatFuelMain), "MORE_fuel_accelerant", "1.4.0", "hzb1130")]
 [assembly: MelonGame("Hinterland", "TheLongDark")]
 
 namespace AnimalFatFuel
@@ -16,6 +16,7 @@ namespace AnimalFatFuel
     public class AnimalFatFuelMain : MelonMod
     {
         public static List<int> tempTinderInstances = new List<int>();
+        public static List<int> tempCharcoalInstances = new List<int>();
         public override void OnInitializeMelon()
         {
             Settings.OnLoad();
@@ -45,6 +46,18 @@ namespace AnimalFatFuel
         [Slider(1, 20)]
         public int heatIncrease = 5;
 
+        [Section("Charcoal Fuel / 木炭燃料")]
+        [Name("Enable Charcoal as Fuel / 启用木炭作为燃料")]
+        public bool charcoalAsFuel = false;
+
+        [Name("Burn Time (Minutes) / 燃烧时间(分钟)")]
+        [Slider(5, 60)]
+        public int charcoalBurnMinutes = 20;
+
+        [Name("Heat Increase / 温度增加")]
+        [Slider(1, 20)]
+        public int charcoalHeatIncrease = 3;
+
         [Section("Accelerant Probability / 助燃剂概率消耗")]
         [Name("Enable Probability Consumption / 启用概率消耗")]
         public bool enableAccelerantProbability = false;
@@ -67,7 +80,12 @@ namespace AnimalFatFuel
                 SetFieldVisible(nameof(burnMinutesPerKg), vis);
                 SetFieldVisible(nameof(heatIncrease), vis);
             }
-
+            if (field.Name == nameof(charcoalAsFuel))
+            {
+                bool vis = (bool)newValue;
+                SetFieldVisible(nameof(charcoalBurnMinutes), vis);
+                SetFieldVisible(nameof(charcoalHeatIncrease), vis);
+            }
             if (field.Name == nameof(enableAccelerantProbability))
                 SetFieldVisible(nameof(accelerantConsumeChance), (bool)newValue);
         }
@@ -84,6 +102,8 @@ namespace AnimalFatFuel
             options.SetFieldVisible(nameof(options.tinderBurnMultiplier), options.tinderAsFuel);
             options.SetFieldVisible(nameof(options.burnMinutesPerKg), options.animalFatAsFuel);
             options.SetFieldVisible(nameof(options.heatIncrease), options.animalFatAsFuel);
+            options.SetFieldVisible(nameof(options.charcoalBurnMinutes), options.charcoalAsFuel);
+            options.SetFieldVisible(nameof(options.charcoalHeatIncrease), options.charcoalAsFuel);
             options.SetFieldVisible(nameof(options.accelerantConsumeChance), options.enableAccelerantProbability);
         }
     }
@@ -120,8 +140,6 @@ namespace AnimalFatFuel
 
 
     // ==============================================
-    // 动物脂肪 + 火引燃料
-    // ==============================================
     [HarmonyPatch(typeof(GearItem), nameof(GearItem.Awake))]
     internal static class PatchGearItemAwake
     {
@@ -137,7 +155,6 @@ namespace AnimalFatFuel
                 __instance.m_FuelSourceItem = fs;
                 return;
             }
-
             var fuel = __instance.m_FuelSourceItem;
             if (fuel != null && fuel.m_IsTinder)
             {
@@ -152,8 +169,7 @@ namespace AnimalFatFuel
         private static void Prefix()
         {
             AnimalFatFuelMain.tempTinderInstances.Clear();
-
-            if (!Settings.options.tinderAsFuel) return;
+            AnimalFatFuelMain.tempCharcoalInstances.Clear();
 
             var inv = GameManager.GetInventoryComponent();
             if (inv == null) return;
@@ -161,13 +177,32 @@ namespace AnimalFatFuel
             foreach (var obj in inv.m_Items)
             {
                 GearItem gi = obj;
-                var fuelSource = gi.m_FuelSourceItem;
-                if (fuelSource == null) continue;
+                if (gi == null) continue;
 
-                if (fuelSource.m_IsTinder)
+                var fuelSource = gi.m_FuelSourceItem;
+
+                if (Settings.options.tinderAsFuel && fuelSource != null && fuelSource.m_IsTinder)
                 {
                     AnimalFatFuelMain.tempTinderInstances.Add(gi.m_InstanceID);
                     fuelSource.m_IsTinder = false;
+                }
+
+                if (Settings.options.charcoalAsFuel && gi.name == "GEAR_Charcoal")
+                {
+                    if (gi.m_FuelSourceItem == null)
+                    {
+                        var fs = gi.gameObject.AddComponent<FuelSourceItem>();
+
+                        fs.m_BurnDurationHours = Settings.options.charcoalBurnMinutes / 60f;
+                        fs.m_HeatIncrease = Settings.options.charcoalHeatIncrease;
+                        fs.m_HeatInnerRadius = 2.0f;
+                        fs.m_HeatOuterRadius = 5.0f;
+                        fs.m_IsTinder = false;
+
+                        gi.m_FuelSourceItem = fs;
+
+                        AnimalFatFuelMain.tempCharcoalInstances.Add(gi.m_InstanceID);
+                    }
                 }
             }
         }
@@ -200,15 +235,21 @@ namespace AnimalFatFuel
                 {
                     fuel.m_IsTinder = true;
                 }
+
+                if (gi.name == "GEAR_Charcoal")
+                {
+                    if (!fuel.m_IsTinder)
+                    {
+                        UnityEngine.Object.Destroy(fuel);
+                        gi.m_FuelSourceItem = null;
+                    }
+                }
             }
 
             AnimalFatFuelMain.tempTinderInstances.Clear();
         }
     }
 
-    // ==============================================
-    // 脂肪 / 火把 显示
-    // ==============================================
     [HarmonyPatch(typeof(GearItemListEntry), nameof(GearItemListEntry.Update))]
     public static class Patch_GearItemListEntry_AnimalFat
     {
@@ -217,11 +258,25 @@ namespace AnimalFatFuel
             GearItem gi = __instance.m_GearItem;
             if (gi == null) return;
 
-            var condLabel = __instance.m_ConditionLabel;
-            if (condLabel == null) return;
+            UILabel condLabel = __instance.m_ConditionLabel;
 
+            if (gi.name == "GEAR_Charcoal")
+            {
+                __instance.m_DisplayCondition = false;
+                __instance.m_DisplayItemCount = true;
+
+                if (condLabel != null)
+                {
+                    condLabel.text = "";
+                    condLabel.enabled = true;
+                }
+
+                return;
+            }
             if (gi.name == "GEAR_AnimalFat")
             {
+                if (condLabel == null) return;
+
                 if (__instance.m_IsSelected)
                 {
                     __instance.m_DisplayCondition = true;
@@ -229,38 +284,26 @@ namespace AnimalFatFuel
 
                     float norm = gi.GetNormalizedCondition();
                     string conditionText = Mathf.RoundToInt(norm * 100f) + "%";
+
                     float weightKG = gi.GetItemWeightKG(false) / ItemWeight.FromKilograms(1f);
-                    condLabel.text = conditionText + " " + $"{weightKG:0.0}kg";
+
+                    condLabel.text = $"{conditionText} {weightKG:0.0}kg";
                     condLabel.enabled = true;
-                    condLabel.SetDirty();
                 }
                 else
                 {
                     __instance.m_DisplayCondition = false;
+                    __instance.m_DisplayItemCount = true;
+
                     condLabel.text = "";
-                    condLabel.enabled = false;
-                }
-            }
-            else if (gi.name == "GEAR_Torch")
-            {
-                if (__instance.m_IsSelected)
-                {
-                    float norm = gi.GetNormalizedCondition();
-                    condLabel.text = Mathf.RoundToInt(norm * 100f) + "%";
                     condLabel.enabled = true;
-                    condLabel.SetDirty();
                 }
-                else
-                {
-                    condLabel.text = "";
-                    condLabel.enabled = false;
-                }
+
+                return;
             }
         }
     }
 
-    // ==============================================
-    // 自定义燃烧时间
     // ==============================================
     [HarmonyPatch(typeof(FuelSourceItem), nameof(FuelSourceItem.GetModifiedBurnDurationHours))]
     internal static class PatchBurnDuration
@@ -273,7 +316,11 @@ namespace AnimalFatFuel
             if (gear == null || !gear.name.Contains("GEAR_AnimalFat")) return true;
 
             float kg = gear.GetItemWeightKG(false) / ItemWeight.FromKilograms(1f);
-            __result = (Settings.options.burnMinutesPerKg / 60f) * kg;
+            var skill = GameManager.GetSkillFireStarting();
+            var arr = skill.m_DurationPercentIncrease;
+            int level = skill.GetCurrentTierNumber();
+            float multiplier = 1f + arr[level] / 100f;
+            __result = (Settings.options.burnMinutesPerKg / 60f) * kg * multiplier;
             return false;
         }
     }
